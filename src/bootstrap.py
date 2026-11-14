@@ -78,6 +78,41 @@ def _batch_ldf(cum: np.ndarray, obs: np.ndarray) -> np.ndarray:
     return num / den
 
 
+def _pseudo_development(
+    cum: np.ndarray,
+    n_sims: int,
+    rng: np.random.Generator,
+    bias_adjust: bool,
+    drop_zero_residuals: bool,
+    center_residuals: bool,
+) -> tuple[OdpFit, np.ndarray, np.ndarray]:
+    """Resample Pearson residuals into pseudo triangles; return the fit, pseudo cumulative data and their LDFs."""
+    fit = odp_fit(cum)
+    obs = is_observed(cum)
+    n_orig, n_dev = cum.shape
+    m = np.nan_to_num(fit.expected_incremental)
+
+    pool = fit.unscaled_residuals[obs]
+    if drop_zero_residuals:
+        pool = pool[~np.isclose(pool, 0.0, atol=1e-10)]
+    if bias_adjust:
+        pool = pool * np.sqrt(fit.n_obs / (fit.n_obs - fit.n_params))
+    if center_residuals:
+        pool = pool - pool.mean()
+
+    draws = rng.choice(pool, size=(n_sims, n_orig, n_dev), replace=True)
+    pseudo_inc = np.where(obs[None], m[None] + draws * np.sqrt(np.abs(m))[None], 0.0)
+    pseudo_cum = np.cumsum(pseudo_inc, axis=2)
+    return fit, pseudo_cum, _batch_ldf(pseudo_cum, obs)
+
+
+def _gamma_process(mean: np.ndarray, phi: float, rng: np.random.Generator) -> np.ndarray:
+    """ODP process error: Gamma draw with mean |m| and variance phi |m|, sign of m restored."""
+    shape = np.abs(mean) / phi
+    sim = np.where(shape > 0, rng.gamma(np.maximum(shape, 1e-12), phi), 0.0)
+    return np.sign(mean) * sim
+
+
 def odp_bootstrap(
     cum: np.ndarray,
     n_sims: int = 10_000,
@@ -98,23 +133,9 @@ def odp_bootstrap(
     center_residuals: subtract the mean of the residual pool (Shapland 2016)
     """
     rng = np.random.default_rng(seed)
-    fit = odp_fit(cum)
+    fit, pseudo_cum, ldf = _pseudo_development(cum, n_sims, rng, bias_adjust, drop_zero_residuals, center_residuals)
     obs = is_observed(cum)
     n_orig, n_dev = cum.shape
-    m = np.nan_to_num(fit.expected_incremental)
-
-    pool = fit.unscaled_residuals[obs]
-    if drop_zero_residuals:
-        pool = pool[~np.isclose(pool, 0.0, atol=1e-10)]
-    if bias_adjust:
-        pool = pool * np.sqrt(fit.n_obs / (fit.n_obs - fit.n_params))
-    if center_residuals:
-        pool = pool - pool.mean()
-
-    draws = rng.choice(pool, size=(n_sims, n_orig, n_dev), replace=True)
-    pseudo_inc = np.where(obs[None], m[None] + draws * np.sqrt(np.abs(m))[None], 0.0)
-    pseudo_cum = np.cumsum(pseudo_inc, axis=2)
-    ldf = _batch_ldf(pseudo_cum, obs)
 
     lag = latest_lag(cum)
     future_inc = np.zeros((n_sims, n_orig, n_dev))
@@ -127,12 +148,71 @@ def odp_bootstrap(
 
     if process_error:
         future_mask = ~obs
-        mean = future_inc[:, future_mask]
-        shape = np.abs(mean) / fit.scale_phi
-        sim = np.where(shape > 0, rng.gamma(np.maximum(shape, 1e-12), fit.scale_phi), 0.0)
-        future_inc[:, future_mask] = np.sign(mean) * sim
+        future_inc[:, future_mask] = _gamma_process(future_inc[:, future_mask], fit.scale_phi, rng)
 
     return BootstrapResult(future_inc.sum(axis=2), fit)
+
+
+@dataclass(frozen=True)
+class OneYearResult:
+    """Simulated one-year claims development result by accident year (n_sims x n_origin).
+
+    ``CDR = U^I - U^{I+1}``: ultimate at the valuation date minus the re-estimated ultimate
+    one year later. Positive values are run-off gains, negative values losses.
+    """
+
+    cdr_by_origin: np.ndarray
+    ultimate_now: np.ndarray
+    fit: OdpFit
+
+    @property
+    def total(self) -> np.ndarray:
+        """Simulated total CDR."""
+        return self.cdr_by_origin.sum(axis=1)
+
+
+def odp_one_year_cdr(
+    cum: np.ndarray,
+    n_sims: int = 10_000,
+    seed: int = 42,
+    bias_adjust: bool = True,
+    drop_zero_residuals: bool = True,
+) -> OneYearResult:
+    """Re-reserving ("actuary-in-the-box") bootstrap of the one-year CDR under the ODP model.
+
+    For every simulation (Ohlsson & Lauzeningks 2009; R ChainLadder ``CDR.BootChainLadder``):
+
+    1. draw pseudo development factors f* from the residual bootstrap (parameter error);
+    2. simulate the next calendar diagonal from the *actual* latest diagonal:
+       ``X_{i,l+1} ~ Gamma(mean = C_{i,l} (f*_l - 1), var = phi * mean)`` (process error);
+    3. append it to the real triangle, re-estimate all factors with the chain ladder and
+       re-project the ultimate: ``U^{I+1}``;
+    4. CDR = ``U^I - U^{I+1}``, with ``U^I`` the chain-ladder ultimate on the real data.
+    """
+    rng = np.random.default_rng(seed)
+    fit, _, ldf_star = _pseudo_development(cum, n_sims, rng, bias_adjust, drop_zero_residuals, False)
+    n_orig, n_dev = cum.shape
+    obs = is_observed(cum)
+    lag = latest_lag(cum)
+    latest = latest_diagonal(cum)
+    f0 = volume_weighted_ldf(cum)
+    ultimate_now = latest * np.array([np.prod(f0[lag[i]:]) for i in range(n_orig)])
+
+    open_rows = np.flatnonzero(lag < n_dev - 1)
+    mean_next = latest[open_rows][None] * (ldf_star[:, lag[open_rows]] - 1.0)
+    next_inc = _gamma_process(mean_next, fit.scale_phi, rng)
+
+    ext = np.broadcast_to(np.nan_to_num(cum), (n_sims, n_orig, n_dev)).copy()
+    ext[:, open_rows, lag[open_rows] + 1] = latest[open_rows][None] + next_inc
+    obs_ext = obs.copy()
+    obs_ext[open_rows, lag[open_rows] + 1] = True
+    ldf_next = _batch_ldf(ext, obs_ext)
+
+    ultimate_next = np.repeat(latest[None], n_sims, axis=0)
+    for i in open_rows:
+        l1 = lag[i] + 1
+        ultimate_next[:, i] = ext[:, i, l1] * np.prod(ldf_next[:, l1:], axis=1)
+    return OneYearResult(ultimate_now[None] - ultimate_next, ultimate_now, fit)
 
 
 def summarise(samples: np.ndarray, percentiles: tuple[float, ...] = (50, 75, 95, 99.5)) -> dict[str, float]:

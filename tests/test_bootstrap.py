@@ -57,3 +57,31 @@ def test_bootstrap_mean_close_to_chain_ladder():
 def test_summarise_keys():
     s = summarise(np.arange(100.0))
     assert {"mean", "std", "cv", "p75", "p99.5"} <= set(s)
+
+
+def test_one_year_cdr_is_centred_and_close_to_merz_wuthrich():
+    """Re-reserving bootstrap: E[CDR] ~ 0 and s.d. of the same order as Merz-Wüthrich (ODP vs Mack model)."""
+    from src.bootstrap import odp_one_year_cdr
+    from src.merz_wuthrich import merz_wuthrich
+
+    res = odp_one_year_cdr(TRI, n_sims=5000, seed=5)
+    reserve = chain_ladder(TRI).reserve.sum()
+    assert abs(res.total.mean()) < 0.01 * reserve
+    assert res.total.std() == pytest.approx(merz_wuthrich(TRI).cdr_total_se, rel=0.10)
+    # one-year uncertainty is smaller than the full run-off uncertainty of the same model
+    assert res.total.std() < odp_bootstrap(TRI, n_sims=5000, seed=5).total.std()
+    # the oldest year is fully developed: no CDR
+    np.testing.assert_array_equal(res.cdr_by_origin[:, 0], 0.0)
+
+
+def test_one_year_cdr_without_noise_reproduces_chain_ladder():
+    """On an exact chain-ladder triangle (zero residuals, phi = 0) the CDR is identically zero."""
+    from src.bootstrap import odp_one_year_cdr
+
+    f = np.array([2.0, 1.5, 1.2, 1.1])
+    first = np.array([100.0, 120.0, 90.0, 110.0, 130.0])
+    sq = first[:, None] * np.concatenate([[1.0], np.cumprod(f)])[None]
+    tri = np.where(np.add.outer(np.arange(5), np.arange(5)) <= 4, sq, np.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        res = odp_one_year_cdr(tri, n_sims=10, seed=0, drop_zero_residuals=False)
+    np.testing.assert_allclose(res.cdr_by_origin, 0.0, atol=1e-8)
