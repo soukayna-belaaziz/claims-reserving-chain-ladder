@@ -1,0 +1,16 @@
+segment,tail_assumption,paid_tail,unpaid_paid_cl,diff_vs_selected,diff_vs_selected_pct,selected
+wkcomp,none,1,312973,-95507.8,-23.3812,False
+wkcomp,paid_exponential,1.0216,342406,-66074.8,-16.1757,False
+wkcomp,paid_inverse_power,1.0845,428137,19656.7,4.81214,False
+wkcomp,inc_to_paid_x_inc_exponential,1.07008,408481,0,0,True
+wkcomp,inc_to_paid_x_inc_inverse_power,1.11957,475930,67449,16.5122,False
+comauto,none,1,262475,-7500,-2.77804,False
+comauto,paid_exponential,1.00125,264000,-5975.01,-2.21317,False
+comauto,paid_inverse_power,1.0053,268936,-1038.71,-0.384743,False
+comauto,inc_to_paid_x_inc_exponential,1.00615,269975,0,0,True
+comauto,inc_to_paid_x_inc_inverse_power,1.00892,273355,3380.58,1.25218,False
+ppauto,none,1,2.83668e+06,-44879.4,-1.55747,False
+ppauto,paid_exponential,1.00112,2.8586e+06,-22959.5,-0.796775,False
+ppauto,paid_inverse_power,1.00412,2.91737e+06,35809,1.24269,False
+ppauto,inc_to_paid_x_inc_exponential,1.00229,2.88156e+06,0,0,True
+ppauto,inc_to_paid_x_inc_inverse_power,1.00412,2.91737e+06,35809,1.24269,False

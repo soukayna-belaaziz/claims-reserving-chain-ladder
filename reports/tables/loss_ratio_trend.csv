@@ -1,0 +1,4 @@
+segment,excluded_years,n_years,annual_trend,slope_se,t_stat,used_in_selection,elr_untrended,elr_trended_bf_2005,elr_trended_bf_2006,elr_trended_bf_2007,elr_cape_cod_untrended,elr_cape_cod_trended_2007,cl_loss_ratio_2005_2007
+wkcomp,2001,9,-0.0222597,0.0161474,-1.39411,False,0.522267,0.469474,0.459024,0.448806,0.517704,0.505468,0.502748
+comauto,-,10,-0.0454379,0.0110887,-4.1937,True,0.783424,0.630647,0.601991,0.574638,0.69693,0.570298,0.572851
+ppauto,-,10,-0.00565184,0.0072998,-0.776442,False,0.746476,0.726219,0.722115,0.718034,0.720453,0.703135,0.724275

@@ -200,3 +200,61 @@ def paid_incurred_figure(data: list[dict], path: Path) -> None:
     fig.suptitle("Paid-to-incurred ratios by accident year (darker = more recent)", x=0.01, ha="left", color=INK)
     fig.tight_layout()
     _save(fig, path)
+
+
+def one_year_vs_ultimate_figure(data: list[dict], path: Path) -> None:
+    """Distribution of the one-year loss (-CDR) next to the ultimate deviation of the unpaid, both from the bootstrap."""
+    fig, axes = plt.subplots(1, len(data), figsize=(5.2 * len(data), 3.6))
+    for ax, d in zip(np.atleast_1d(axes), data):
+        ult, one = d["ultimate_dev"] / 1e3, d["one_year_loss"] / 1e3
+        bins = np.linspace(min(ult.min(), one.min()), max(ult.max(), one.max()), 80)
+        ax.hist(ult, bins=bins, histtype="stepfilled", color=SERIES[0], alpha=0.30, zorder=2)
+        ax.hist(ult, bins=bins, histtype="step", color=SERIES[0], lw=1.5, zorder=3, label="Ultimate (run-off) view")
+        ax.hist(one, bins=bins, histtype="stepfilled", color=SERIES[1], alpha=0.30, zorder=2)
+        ax.hist(one, bins=bins, histtype="step", color=SERIES[1], lw=1.5, zorder=3, label="One-year view (-CDR)")
+        ax.set_ylim(0, ax.get_ylim()[1] * 1.25)
+        top = ax.get_ylim()[1]
+        for val, color, lab, h in ((np.quantile(ult, 0.995), SERIES[0], "99.5%", 0.97), (np.quantile(one, 0.995), SERIES[1], "99.5%", 0.80)):
+            ax.axvline(val, color=color, lw=1.2, ls=":", zorder=4)
+            ax.text(val, top * h, f" {lab}: {val:,.1f}", fontsize=7.5, color=INK_2, va="top", ha="left",
+                    bbox={"facecolor": SURFACE, "edgecolor": "none", "pad": 1.0}, zorder=5)
+        ax.text(0.02, 0.97, f"MW s.e. {d['mw_se'] / 1e3:,.1f} vs Mack s.e. {d['mack_se'] / 1e3:,.1f}",
+                transform=ax.transAxes, fontsize=7.5, color=INK_2, va="top")
+        ax.set_title(d["title"], loc="left")
+        ax.set_xlabel("Loss relative to best estimate, USD m (positive = adverse)")
+        ax.set_yticks([])
+        ax.grid(axis="y", visible=False)
+    np.atleast_1d(axes)[0].legend(loc="center left", fontsize=7.5)
+    fig.suptitle("Paid chain ladder incl. tail: one-year CDR vs full run-off uncertainty (ODP bootstrap, 10,000 sims)",
+                 x=0.01, ha="left", color=INK)
+    fig.tight_layout()
+    _save(fig, path)
+
+
+def loss_ratio_trend_figure(data: list[dict], path: Path) -> None:
+    """Chain-ladder loss ratios by accident year, fitted trend and the BF priors; hold-out outcome for reference."""
+    fig, axes = plt.subplots(1, len(data), figsize=(5.2 * len(data), 3.8))
+    for k, (ax, d) in enumerate(zip(np.atleast_1d(axes), data)):
+        x = d["origins"]
+        w = d["weights"] / d["weights"].max()
+        used = d["used_in_fit"]
+        ax.scatter(x[used], 100 * d["lr_cl"][used], s=20 + 90 * w[used], color=SERIES[0], edgecolor=SURFACE, lw=1.0,
+                   zorder=4, label="Incurred CL loss ratio (size = used-up premium)")
+        if (~used).any():
+            ax.scatter(x[~used], 100 * d["lr_cl"][~used], s=40, facecolor="none", edgecolor=SERIES[0], lw=1.2, zorder=4,
+                       label="Excluded from the fit")
+        ax.plot(x, 100 * d["trend_line"], color=SERIES[0], lw=1.4, zorder=3,
+                label="Fitted trend")
+        ax.plot(x, 100 * np.full(len(x), d["elr_flat"]), color=MUTED, lw=1.4, ls="--", zorder=3, label="Original BF prior (flat)")
+        ax.plot(x, 100 * d["elr_trended"], color=SERIES[1], lw=2.0, zorder=3, label="On-levelled BF prior")
+        ax.scatter(x, 100 * d["lr_actual"], marker="D", s=22, color=INK, zorder=5,
+                   label="Hold-out: case incurred LR at 120m (not used)")
+        ax.set_title(f"{d['title']}: trend {100 * d['trend']:+.1f}% p.a. (t = {d['t']:.1f})", loc="left")
+        ax.set_ylabel("Loss ratio, %")
+        ax.set_xticks(x, [str(o) for o in x], rotation=45)
+    handles, labels = np.atleast_1d(axes)[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=7.5)
+    fig.suptitle("Loss-ratio trend estimated at 31.12.2007 and the on-levelled Bornhuetter-Ferguson prior",
+                 x=0.01, ha="left", color=INK)
+    fig.tight_layout(rect=(0, 0.12, 1, 1))
+    _save(fig, path)
