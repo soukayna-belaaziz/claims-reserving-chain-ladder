@@ -78,6 +78,32 @@ def exponential_tail(
     return tail, float(a), float(b)
 
 
+def inverse_power_tail(
+    ldf: np.ndarray,
+    start_lag: int = 2,
+    extrap_periods: int = 100,
+    threshold: float = 1.00001,
+) -> tuple[float, float, float]:
+    """Tail factor from an inverse power curve (Sherman 1984): ``ln(f_k - 1) = a + b ln(k + 1)``.
+
+    The development excess decays polynomially instead of geometrically, so the tail is
+    heavier than the exponential one; with a finite ``extrap_periods`` (100 years) the
+    product is truncated, as in ``chainladder.TailCurve(curve='inverse_power')``.
+
+    Returns
+    -------
+    tail, intercept a, slope b
+    """
+    k = np.arange(len(ldf))
+    use = (k >= start_lag) & (ldf > threshold)
+    if use.sum() < 2:
+        return 1.0, np.nan, np.nan
+    b, a = np.polyfit(np.log(k[use] + 1.0), np.log(ldf[use] - 1.0), 1)
+    future_k = np.arange(len(ldf), len(ldf) + extrap_periods)
+    tail = float(np.prod(1.0 + np.exp(a) * (future_k + 1.0) ** b))
+    return tail, float(a), float(b)
+
+
 def project_square(cum: np.ndarray, ldf: np.ndarray) -> np.ndarray:
     """Fill the lower triangle by applying the development factors to the latest diagonal."""
     out = cum.astype(float).copy()
