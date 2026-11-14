@@ -1,0 +1,4 @@
+segment,paid_exponential_curve,incurred_exponential_curve,incurred_to_paid_at_120m_oldest_ay,selected_paid_tail,selected_incurred_tail
+wkcomp,1.0216,1.01555,1.05369,1.07008,1.01555
+comauto,1.00125,1.001,1.00514,1.00615,1.001
+ppauto,1.00112,1.00063,1.00166,1.00229,1.00063

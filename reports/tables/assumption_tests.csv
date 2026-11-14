@@ -1,0 +1,7 @@
+segment,basis,cy_Z,cy_E[Z],cy_ci95_low,cy_ci95_high,cy_reject,dev_corr_T,dev_corr_ci50_low,dev_corr_ci50_high,dev_corr_reject
+wkcomp,paid,14,12.5,8.91498,16.085,False,0.470068,-0.127467,0.127467,True
+wkcomp,incurred,10,12.5,8.91498,16.085,False,0.0869048,-0.127467,0.127467,False
+comauto,paid,10,12.7812,9.03304,16.5295,False,0.00782313,-0.127467,0.127467,False
+comauto,incurred,9,12.5,8.91498,16.085,False,0.362925,-0.127467,0.127467,True
+ppauto,paid,9,12.5,8.91498,16.085,False,0.0333333,-0.127467,0.127467,False
+ppauto,incurred,6,12.5,8.91498,16.085,True,-0.294218,-0.127467,0.127467,True

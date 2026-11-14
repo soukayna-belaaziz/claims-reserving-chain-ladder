@@ -1,0 +1,7 @@
+segment,basis,actual,expected,ave_pct
+comauto,incurred,64497,79065.1,-18.4255
+comauto,paid,92207,103396,-10.8214
+ppauto,incurred,579270,688694,-15.8886
+ppauto,paid,1.1866e+06,1.35437e+06,-12.3873
+wkcomp,incurred,91194,97805.6,-6.75999
+wkcomp,paid,122302,111720,9.4723

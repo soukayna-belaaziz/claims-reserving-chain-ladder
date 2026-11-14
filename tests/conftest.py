@@ -4,24 +4,10 @@ from __future__ import annotations
 
 import chainladder as cl
 import numpy as np
-import pandas as pd
 import pytest
 
-from src.data import load_segments, to_long_triangle, upper_triangle
-
-
-def to_cl_triangle(tri: np.ndarray, origins: np.ndarray) -> cl.Triangle:
-    """Wrap a numpy cumulative triangle into a chainladder.Triangle (annual grain)."""
-    long = to_long_triangle(tri, origins)
-    long["origin"] = long["origin"].astype(str)
-    long["valuation"] = long["valuation"].astype(str)
-    return cl.Triangle(long, origin="origin", development="valuation", columns="value", cumulative=True)
-
-
-def premium_triangle(premium: np.ndarray, origins: np.ndarray) -> cl.Triangle:
-    """Premium vector as a single-column chainladder.Triangle (used as sample_weight)."""
-    df = pd.DataFrame({"origin": origins.astype(str), "valuation": str(int(origins.max())), "value": premium})
-    return cl.Triangle(df, origin="origin", development="valuation", columns="value", cumulative=True)
+from src.data import load_segments, upper_triangle
+from src.validation import premium_triangle, to_cl_triangle  # noqa: F401  (re-exported for tests)
 
 
 def _cases() -> list[tuple[str, np.ndarray, np.ndarray, np.ndarray | None]]:
