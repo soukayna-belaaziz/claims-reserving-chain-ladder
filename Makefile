@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: all data pipeline test test-r clean
+.PHONY: all data pipeline test test-r notebook clean
 
 all: data pipeline test
 
@@ -15,6 +15,9 @@ test:
 
 test-r:
 	Rscript -e "testthat::test_dir('r/tests', stop_on_failure = TRUE)"
+
+notebook:
+	cd notebooks && jupyter nbconvert --to notebook --execute --inplace walkthrough.ipynb
 
 clean:
 	rm -rf reports/figures/*.png reports/tables/*
